@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, CrosshairMode } from "lightweight-charts";
+import { createChart, CrosshairMode, CandlestickSeries } from "lightweight-charts";
 
 const SOCKET_BASE = `wss://ws.finnhub.io?token=${__FINNHUB__}`;
 
@@ -35,7 +35,7 @@ export default function App() {
         horzLines: { color: "#21262d" },
       },
     });
-    candleSeries.current = chart.addCandlestickSeries({
+    candleSeries.current = chart.addSeries(CandlestickSeries, {
       upColor: "#16c784",
       downColor: "#ea3943",
       borderVisible: false,
