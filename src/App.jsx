@@ -1,18 +1,6 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
-
-// --- ENV NOTE --------------------------------------------------------------
-// Store your keys in environment variables and inject them at build time.
-// vite.config.js example:
-//  import { defineConfig } from 'vite';
-//  export default defineConfig({
-//    define: {
-//      'process.env': {},
-//      __FINNHUB__: JSON.stringify(process.env.VITE_FINNHUB_KEY),
-//      __OPENAI__: JSON.stringify(process.env.VITE_OPENAI_KEY),
-//    },
-//  });
-// ---------------------------------------------------------------------------
 
 const SOCKET_BASE = `wss://ws.finnhub.io?token=${__FINNHUB__}`;
 
@@ -54,52 +42,43 @@ export default function App() {
       wickUpColor: "#16c784",
       wickDownColor: "#ea3943",
     });
-    // Resize handler
     const handleResize = () => chart.resize(chartEl.current.clientWidth, 380);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  /* ---------- REAL‑TIME DATA -------------------------------------------- */
+  /* ---------- REAL-TIME DATA -------------------------------------------- */
   useEffect(() => {
     if (!candleSeries.current) return;
     const ws = new WebSocket(SOCKET_BASE);
+    let last = null;
 
-    // Minimal 1‑min aggregator
-    let lastCandle = null;
-
-    const flush = () => {
-      if (!lastCandle) return;
-      candleSeries.current.update(lastCandle);
-    };
+    const flush = () => last && candleSeries.current.update(last);
 
     ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe", symbol: ticker }));
-    ws.onmessage = (msg) => {
-      const parsed = JSON.parse(msg.data);
-      if (parsed.data) {
-        parsed.data.forEach((tick) => {
-          const t = Math.floor(tick.t / 60000) * 60; // bucket to minute
-          if (!lastCandle || lastCandle.time !== t) {
-            flush();
-            lastCandle = { time: t, open: tick.p, high: tick.p, low: tick.p, close: tick.p };
-          } else {
-            lastCandle.high = Math.max(lastCandle.high, tick.p);
-            lastCandle.low = Math.min(lastCandle.low, tick.p);
-            lastCandle.close = tick.p;
-          }
-        });
-      }
+    ws.onmessage = ({ data }) => {
+      const parsed = JSON.parse(data);
+      parsed.data?.forEach((tick) => {
+        const t = Math.floor(tick.t / 60000) * 60;
+        if (!last || last.time !== t) {
+          flush();
+          last = { time: t, open: tick.p, high: tick.p, low: tick.p, close: tick.p };
+        } else {
+          last.high = Math.max(last.high, tick.p);
+          last.low = Math.min(last.low, tick.p);
+          last.close = tick.p;
+        }
+      });
     };
-    const interval = setInterval(flush, 5000);
+    const id = setInterval(flush, 5000);
     return () => {
-      clearInterval(interval);
+      clearInterval(id);
       ws.close();
     };
   }, [ticker]);
 
   /* ---------- AI DAILY BRIEF -------------------------------------------- */
   useEffect(() => {
-    // This endpoint should run server‑side to keep your OpenAI key secret
     fetch(`/api/brief?tickers=${Object.keys(positions).join()}`)
       .then((r) => r.text())
       .then(setDailyBrief)
@@ -126,11 +105,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0d1117] text-gray-200 p-5 space-y-6 font-sans">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Pre‑Market Dashboard</h1>
-        <p className="bg-[#161b22] p-3 rounded-xl text-sm whitespace-pre-wrap">
-          {dailyBrief}
-        </p>
+        <h1 className="text-2xl font-bold">Pre-Market Dashboard</h1>
+        <p className="bg-[#161b22] p-3 rounded-xl text-sm whitespace-pre-wrap">{dailyBrief}</p>
       </header>
+
       <section className="space-y-4">
         <div className="flex items-center space-x-2">
           <input
@@ -142,6 +120,7 @@ export default function App() {
         </div>
         <div ref={chartEl} />
       </section>
+
       <PositionForm onAdd={addPosition} />
       <NewsFeed news={news} />
     </div>
@@ -198,7 +177,9 @@ function NewsFeed({ news }) {
         {news.map((n) => (
           <li key={n.id} className="py-2 flex items-start gap-2">
             <span
-              className={`h-3 w-3 rounded-full mt-1 ${n.sentiment === "Bearish" ? "bg-red-500" : "bg-green-500"}`}
+              className={`h-3 w-3 rounded-full mt-1 ${
+                n.sentiment === "Bearish" ? "bg-red-500" : "bg-green-500"
+              }`}
             />
             <a href={n.url} target="_blank" rel="noreferrer" className="hover:underline">
               {n.headline}
