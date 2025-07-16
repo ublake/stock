@@ -1,0 +1,5 @@
+"homepage": "https://ublake.github.io/stock",
+"scripts": {
+  "predeploy": "npm run build",
+  "deploy": "gh-pages -d dist"
+}
